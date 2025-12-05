@@ -49,9 +49,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize API clients
-anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Initialize API clients lazily (avoid crash if env vars not set at import time)
+_anthropic_client = None
+_openai_client = None
+
+def get_anthropic_client():
+    global _anthropic_client
+    if _anthropic_client is None:
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
+        _anthropic_client = anthropic.Anthropic(api_key=api_key)
+    return _anthropic_client
+
+def get_openai_client():
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
+        _openai_client = OpenAI(api_key=api_key)
+    return _openai_client
 
 # Airtable configuration
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -169,7 +187,7 @@ async def transcribe_audio(audio_file: UploadFile) -> str:
 
         # Transcribe with Whisper
         with open(tmp_path, "rb") as audio:
-            transcript = openai_client.audio.transcriptions.create(
+            transcript = get_openai_client().audio.transcriptions.create(
                 model="whisper-1",
                 file=audio,
                 response_format="text"
@@ -189,7 +207,7 @@ async def transcribe_audio(audio_file: UploadFile) -> str:
 async def classify_intent(transcription: str) -> IntentResult:
     """Use Claude to classify the intent of a transcription."""
     try:
-        response = anthropic_client.messages.create(
+        response = get_anthropic_client().messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=200,
             messages=[{
@@ -221,7 +239,7 @@ async def classify_intent(transcription: str) -> IntentResult:
 async def extract_lead_fields(transcription: str) -> ExtractedLead:
     """Use Claude to extract lead fields from transcription."""
     try:
-        response = anthropic_client.messages.create(
+        response = get_anthropic_client().messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=500,
             messages=[{
@@ -599,13 +617,6 @@ async def test_extract(payload: WisprWebhook):
 
 if __name__ == "__main__":
     import uvicorn
-
-    # Validate required environment variables
-    required_vars = ["ANTHROPIC_API_KEY"]
-    missing = [var for var in required_vars if not os.getenv(var)]
-    if missing:
-        logger.error(f"Missing required environment variables: {missing}")
-        exit(1)
 
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
