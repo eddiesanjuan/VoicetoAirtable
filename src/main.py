@@ -863,13 +863,23 @@ async def create_airtable_task(task: ExtractedTask, lead_id: Optional[str] = Non
     fields = {}
     fields_populated = []
 
+    # Valid Task Type options from Airtable
+    valid_task_types = ["Call", "Email", "Meeting", "Lead Follow-up", "Scope Follow-up",
+                        "Proposal Follow-up", "Site Visit", "Quote Review", "Other"]
+
+    # Set Related Item (task description) - this combines with Task Type to form Task Name formula
     if task.title:
-        fields["Task Name"] = task.title
-        fields_populated.append("Task Name")
+        fields["Related Item"] = task.title
+        fields_populated.append("Related Item")
 
     if task.task_type:
-        fields["Task Type"] = task.task_type
-        fields_populated.append("Task Type")
+        # Validate against allowed Task Type values
+        if task.task_type in valid_task_types:
+            fields["Task Type"] = task.task_type
+            fields_populated.append("Task Type")
+        else:
+            fields["Task Type"] = "Other"
+            fields_populated.append("Task Type (mapped to Other)")
     else:
         fields["Task Type"] = "Lead Follow-up"  # Default
         fields_populated.append("Task Type (default)")
