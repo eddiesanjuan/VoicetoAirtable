@@ -394,10 +394,9 @@
     </div>
 
     <script>
-        // Configuration - auto-detect if served from backend
-        const API_URL = window.location.origin.includes('localhost')
-            ? window.location.origin
-            : 'http://localhost:8000';
+        // Configuration - auto-detect API URL from where page is served
+        // When served from backend (/recorder), origin is the API URL
+        const API_URL = window.location.origin;
 
         // State
         let mediaRecorder = null;
