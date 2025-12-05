@@ -526,11 +526,11 @@ async def find_lead_by_identifier(identifier: str, sales_rep_id: Optional[str] =
     # Base search: Customer Name or Contact Phone contains identifier
     search_formula = f"OR(SEARCH(LOWER(\"{identifier}\"), LOWER({{Customer Name}})), SEARCH(\"{identifier}\", {{Contact Phone}}))"
 
-    # If sales rep provided, also filter by Assigned Sales Rep
+    # If sales rep provided, also filter by Sales Rep
     if sales_rep_id:
-        # Leads table has "Assigned Sales Rep" linked to Sales Reps
+        # Leads table has "Sales Rep" linked to Sales Reps
         # Filter to only show leads assigned to this rep
-        formula = f"AND({search_formula}, FIND(\"{sales_rep_id}\", ARRAYJOIN(RECORD_ID({{Assigned Sales Rep}}))))"
+        formula = f"AND({search_formula}, FIND(\"{sales_rep_id}\", ARRAYJOIN(RECORD_ID({{Sales Rep}}))))"
     else:
         formula = search_formula
 
@@ -664,8 +664,8 @@ async def create_airtable_lead(lead: ExtractedLead, sales_rep_id: Optional[str] 
 
     # Assign to sales rep if provided
     if sales_rep_id:
-        fields["Assigned Sales Rep"] = [sales_rep_id]  # Linked record field needs array
-        fields_populated.append("Assigned Sales Rep")
+        fields["Sales Rep"] = [sales_rep_id]  # Linked record field needs array
+        fields_populated.append("Sales Rep")
 
     # Always set status to New (valid options: New, Contacted, Qualified, Converted to Opportunity, Lost)
     fields["Status"] = "New"
@@ -981,8 +981,8 @@ async def create_airtable_task(task: ExtractedTask, lead_id: Optional[str] = Non
 
     # Assign to sales rep if provided
     if sales_rep_id:
-        fields["Assigned To"] = [sales_rep_id]  # Linked record to Sales Reps
-        fields_populated.append("Assigned To")
+        fields["Assigned Sales Rep"] = [sales_rep_id]  # Linked record to Sales Reps
+        fields_populated.append("Assigned Sales Rep")
 
     # Add raw transcription to notes
     if fields.get("Notes"):
