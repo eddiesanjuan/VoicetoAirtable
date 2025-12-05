@@ -1,0 +1,20 @@
+{
+  "name": "voice-to-lead",
+  "version": "0.1.0",
+  "description": "Add leads by voice - EF San Juan",
+  "scripts": {
+    "start": "block run",
+    "build": "block release"
+  },
+  "dependencies": {
+    "@airtable/blocks": "^0.0.74"
+  },
+  "devDependencies": {
+    "@airtable/blocks-cli": "^2.0.4"
+  },
+  "airtableBlock": {
+    "bundler": {
+      "module": "frontend/index.js"
+    }
+  }
+}

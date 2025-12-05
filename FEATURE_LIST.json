@@ -1,0 +1,188 @@
+{
+  "project": "Voice-to-Airtable (EF San Juan Internal)",
+  "description": "Voice-driven lead creation for EF San Juan CRM using Wispr transcription and Claude SDK with Airtable MCP",
+  "last_updated": "2025-12-04T10:00:00Z",
+  "target_base": "EF San Juan CRM (Phase I)",
+  "target_table": "Leads",
+  "features": [
+    {
+      "id": "FEAT-001",
+      "category": "Core",
+      "title": "Voice Transcription Processing",
+      "description": "Receive voice transcription from Wispr API webhook and parse it for lead information",
+      "validation_steps": [
+        "Start local development server on port 8000",
+        "Send POST request to /webhook/wispr with sample transcription JSON",
+        "Verify server responds with 200 status",
+        "Verify transcription text is extracted and logged",
+        "Verify response includes parsed_text field"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "passes": false,
+      "completed_date": null,
+      "notes": "Foundation for all other features"
+    },
+    {
+      "id": "FEAT-002",
+      "category": "AI",
+      "title": "Intent Classification",
+      "description": "Use Claude to classify voice transcription as 'create_lead', 'update_lead', 'query_lead', or 'unknown'",
+      "validation_steps": [
+        "Send transcription 'New lead from John Smith, he called about custom millwork for his beach house'",
+        "Verify Claude classifies intent as 'create_lead'",
+        "Send transcription 'What's the status on the Johnson project?'",
+        "Verify Claude classifies intent as 'query_lead'",
+        "Send transcription 'The weather is nice today'",
+        "Verify Claude classifies intent as 'unknown' with appropriate message"
+      ],
+      "dependencies": ["FEAT-001"],
+      "priority": "high",
+      "passes": false,
+      "completed_date": null,
+      "notes": "MVP focuses on create_lead; other intents return 'not implemented yet'"
+    },
+    {
+      "id": "FEAT-003",
+      "category": "AI",
+      "title": "Lead Field Extraction",
+      "description": "Extract structured lead fields from voice transcription using Claude",
+      "validation_steps": [
+        "Send transcription: 'Got a call from Sarah Johnson at 555-123-4567, she's interested in custom doors for her property at 123 Seaside Drive in Destin. Referral from the Hendersons.'",
+        "Verify extracted fields include: customer_name='Sarah Johnson'",
+        "Verify extracted fields include: contact_phone='555-123-4567'",
+        "Verify extracted fields include: property_address='123 Seaside Drive, Destin'",
+        "Verify extracted fields include: lead_source='Referral'",
+        "Verify extracted fields include: initial_notes contains 'custom doors' and 'Hendersons'",
+        "Send partial transcription: 'New lead, Bob called about cabinets'",
+        "Verify extraction handles missing fields gracefully (phone, address marked as null)"
+      ],
+      "dependencies": ["FEAT-002"],
+      "priority": "high",
+      "passes": false,
+      "completed_date": null,
+      "notes": "Must map to EF San Juan CRM Leads table schema"
+    },
+    {
+      "id": "FEAT-004",
+      "category": "Integration",
+      "title": "Airtable Lead Creation via MCP",
+      "description": "Create new Lead record in EF San Juan CRM using Airtable MCP through Claude SDK",
+      "validation_steps": [
+        "Configure Claude SDK with Airtable MCP credentials",
+        "Send extracted lead data to Airtable creation function",
+        "Verify new record appears in EF San Juan CRM Leads table",
+        "Verify all mapped fields are populated correctly",
+        "Verify Lead Name follows format: 'Customer Name - Property Address'",
+        "Verify Status defaults to 'New Lead'",
+        "Retrieve created record ID and verify it matches Airtable response"
+      ],
+      "dependencies": ["FEAT-003"],
+      "priority": "high",
+      "passes": false,
+      "completed_date": null,
+      "notes": "Core integration - this is the main deliverable"
+    },
+    {
+      "id": "FEAT-005",
+      "category": "API",
+      "title": "End-to-End Voice-to-Lead Flow",
+      "description": "Complete flow from Wispr webhook to Airtable record creation",
+      "validation_steps": [
+        "Start server and ensure all dependencies are running",
+        "Send Wispr webhook with transcription: 'Just got off the phone with Mike Thompson, 850-555-9876, he wants a quote for custom millwork at his new construction on 456 Gulf Shore Blvd in Panama City Beach. He found us on Google.'",
+        "Verify intent classified as 'create_lead'",
+        "Verify fields extracted: customer_name, contact_phone, property_address, lead_source, initial_notes",
+        "Verify Lead record created in Airtable",
+        "Verify API response includes: record_id, status='created', fields_populated list",
+        "Verify response time is under 10 seconds"
+      ],
+      "dependencies": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+      "priority": "high",
+      "passes": false,
+      "completed_date": null,
+      "notes": "Integration test - all features working together"
+    },
+    {
+      "id": "FEAT-006",
+      "category": "UX",
+      "title": "Confirmation Response",
+      "description": "Return human-readable confirmation of what was created",
+      "validation_steps": [
+        "Complete end-to-end flow from FEAT-005",
+        "Verify response includes natural language summary",
+        "Verify summary mentions customer name and what was created",
+        "Verify summary includes Airtable record link (if available)",
+        "Verify error cases return helpful error messages"
+      ],
+      "dependencies": ["FEAT-005"],
+      "priority": "medium",
+      "passes": false,
+      "completed_date": null,
+      "notes": "Nice-to-have for MVP, essential for user experience"
+    },
+    {
+      "id": "FEAT-007",
+      "category": "Config",
+      "title": "Environment Configuration",
+      "description": "Proper environment variable handling for API keys and base IDs",
+      "validation_steps": [
+        "Verify .env.example file exists with all required variables listed",
+        "Verify server fails gracefully with clear error if ANTHROPIC_API_KEY missing",
+        "Verify server fails gracefully with clear error if AIRTABLE_API_KEY missing",
+        "Verify EF_SANJUAN_CRM_BASE_ID is configurable",
+        "Verify LEADS_TABLE_ID is configurable"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "passes": false,
+      "completed_date": null,
+      "notes": "Security and deployment readiness"
+    }
+  ],
+  "field_mapping": {
+    "voice_to_airtable": {
+      "customer_name": "Customer Name",
+      "contact_phone": "Contact Phone",
+      "contact_email": "Contact Email",
+      "property_address": "Property Address",
+      "lead_source": "Lead Source",
+      "job_segment": "Job Segment",
+      "priority": "Priority",
+      "initial_notes": "Initial Notes",
+      "sales_rep": "Sales Rep"
+    },
+    "defaults": {
+      "Status": "New Lead",
+      "Lead Source": "Phone Call"
+    },
+    "derived": {
+      "Lead Name": "{Customer Name} - {Property Address}"
+    }
+  },
+  "lead_source_mapping": {
+    "referral": "Referral",
+    "referred": "Referral",
+    "website": "Website",
+    "google": "Website",
+    "online": "Website",
+    "walk-in": "Walk-in",
+    "walked in": "Walk-in",
+    "phone": "Phone Call",
+    "called": "Phone Call",
+    "repeat": "Repeat Customer",
+    "existing customer": "Repeat Customer"
+  },
+  "job_segment_mapping": {
+    "residential remodel": "RR",
+    "remodel": "RR",
+    "renovation": "RR",
+    "residential new": "RN",
+    "new construction": "RN",
+    "new build": "RN",
+    "commercial remodel": "CR",
+    "commercial renovation": "CR",
+    "commercial new": "CN",
+    "commercial construction": "CN"
+  }
+}

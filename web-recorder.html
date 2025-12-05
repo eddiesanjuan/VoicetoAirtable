@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice to Lead - EF San Juan CRM</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 50%, #3d7ab5 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 32px;
+            max-width: 440px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .logo-text {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1e3a5f;
+            letter-spacing: -0.5px;
+        }
+        .logo-subtitle {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 4px;
+        }
+        h1 {
+            color: #1f2937;
+            font-size: 22px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #64748b;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .record-btn {
+            width: 100%;
+            padding: 18px 24px;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .record-btn.start {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            color: white;
+        }
+        .record-btn.start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(30, 58, 95, 0.3);
+        }
+        .record-btn.stop {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+        .record-btn.preview {
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            color: white;
+        }
+        .record-btn.preview:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
+        }
+        .record-btn.submit {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+        }
+        .record-btn.submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+        .record-btn.secondary {
+            background: #f1f5f9;
+            color: #475569;
+        }
+        .record-btn.secondary:hover {
+            background: #e2e8f0;
+        }
+        .record-btn.view-lead {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            color: white;
+            text-decoration: none;
+        }
+        .record-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.9; transform: scale(0.98); }
+        }
+        .recording-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #dc2626;
+            font-weight: 500;
+        }
+        .red-dot {
+            width: 14px;
+            height: 14px;
+            background: #dc2626;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .status {
+            padding: 20px;
+            border-radius: 14px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .status.processing {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+        .status.processing .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #fbbf24;
+            border-top-color: #92400e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .status.preview {
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+            color: #5b21b6;
+        }
+        .status.success {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+        .status.error {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+        .success-icon, .preview-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        .success-title, .preview-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .lead-name {
+            font-weight: 600;
+            font-size: 18px;
+            margin: 8px 0 16px;
+        }
+        .preview .lead-name { color: #6d28d9; }
+        .success .lead-name { color: #047857; }
+        .result-fields {
+            background: white;
+            padding: 16px;
+            border-radius: 10px;
+            margin: 16px 0;
+            text-align: left;
+        }
+        .result-field {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+        .result-field:last-child {
+            border-bottom: none;
+        }
+        .result-field .label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .result-field .value {
+            color: #111827;
+            font-weight: 600;
+            text-align: right;
+            max-width: 60%;
+        }
+        .transcription {
+            background: rgba(255,255,255,0.7);
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin: 12px 0 0;
+            font-size: 13px;
+            font-style: italic;
+            text-align: left;
+            line-height: 1.5;
+        }
+        .preview .transcription { color: #6d28d9; }
+        .success .transcription { color: #047857; }
+        .tips {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 14px;
+            margin-top: 28px;
+            border: 1px solid #e2e8f0;
+        }
+        .tips h3 {
+            font-size: 13px;
+            color: #475569;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .tips ul {
+            font-size: 14px;
+            color: #64748b;
+            padding-left: 20px;
+            line-height: 1.8;
+        }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .button-group button, .button-group a {
+            flex: 1;
+        }
+        a.btn-link {
+            text-decoration: none;
+        }
+        .ready-text {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #475569;
+            font-size: 15px;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Logo -->
+        <div class="logo">
+            <div class="logo-text">EF San Juan</div>
+            <div class="logo-subtitle">Custom Millwork</div>
+        </div>
+
+        <h1>Add Lead by Voice</h1>
+        <p class="subtitle">Record a quick voice note to create a new lead</p>
+
+        <!-- Status Messages -->
+        <div class="status processing hidden" id="processing">
+            <span class="spinner"></span>
+            <span id="processingText">Transcribing...</span>
+        </div>
+
+        <div class="status preview hidden" id="previewStatus">
+            <div class="preview-icon">&#128269;</div>
+            <div class="preview-title">Review Lead Details</div>
+            <p class="lead-name" id="previewLeadName"></p>
+            <div class="result-fields" id="previewFields"></div>
+            <div class="transcription" id="previewTranscription"></div>
+        </div>
+
+        <div class="status success hidden" id="success">
+            <div class="success-icon">&#10003;</div>
+            <div class="success-title">Lead Created!</div>
+            <p class="lead-name" id="leadName"></p>
+            <div class="result-fields" id="resultFields"></div>
+        </div>
+
+        <div class="status error hidden" id="error">
+            <span id="errorMessage"></span>
+        </div>
+
+        <!-- Recording Controls -->
+        <div id="controls">
+            <button class="record-btn start" id="startBtn" onclick="startRecording()">
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+                Start Recording
+            </button>
+
+            <div class="hidden" id="recordingState">
+                <div class="recording-indicator">
+                    <div class="red-dot"></div>
+                    <span>Recording...</span>
+                </div>
+                <button class="record-btn stop" onclick="stopRecording()">
+                    <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="6" width="12" height="12" rx="2"/>
+                    </svg>
+                    Stop Recording
+                </button>
+            </div>
+
+            <div class="hidden" id="submitState">
+                <p class="ready-text">Recording captured. Preview before creating lead.</p>
+                <div class="button-group">
+                    <button class="record-btn preview" onclick="previewAudio()">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                        Preview
+                    </button>
+                    <button class="record-btn secondary" onclick="reset()">
+                        Re-record
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Actions -->
+        <div class="hidden" id="previewActions">
+            <div class="button-group">
+                <button class="record-btn submit" onclick="confirmLead()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                    Create Lead
+                </button>
+                <button class="record-btn secondary" onclick="reset()">
+                    Re-record
+                </button>
+            </div>
+        </div>
+
+        <!-- Success Actions -->
+        <div class="hidden" id="successActions">
+            <div class="button-group">
+                <a class="btn-link hidden" id="openLeadLink" href="#" target="_blank">
+                    <button class="record-btn view-lead" style="width:100%">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                        </svg>
+                        View in Airtable
+                    </button>
+                </a>
+                <button class="record-btn start" onclick="reset()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    Add Another
+                </button>
+            </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="tips" id="tips">
+            <h3>Quick Tips</h3>
+            <ul>
+                <li><strong>Name & contact:</strong> "John Smith, 555-123-4567"</li>
+                <li><strong>Location:</strong> "Beach house in Destin"</li>
+                <li><strong>Source:</strong> "Referral from the Hendersons"</li>
+                <li><strong>Project:</strong> "Custom doors and windows"</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - auto-detect if served from backend
+        const API_URL = window.location.origin.includes('localhost')
+            ? window.location.origin
+            : 'http://localhost:8000';
+
+        // State
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let audioBlob = null;
+        let previewData = null; // Store preview response for confirmation
+
+        // DOM Elements
+        const startBtn = document.getElementById('startBtn');
+        const recordingState = document.getElementById('recordingState');
+        const submitState = document.getElementById('submitState');
+        const processing = document.getElementById('processing');
+        const processingText = document.getElementById('processingText');
+        const previewStatus = document.getElementById('previewStatus');
+        const previewLeadName = document.getElementById('previewLeadName');
+        const previewFields = document.getElementById('previewFields');
+        const previewTranscription = document.getElementById('previewTranscription');
+        const previewActions = document.getElementById('previewActions');
+        const success = document.getElementById('success');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        const leadName = document.getElementById('leadName');
+        const resultFields = document.getElementById('resultFields');
+        const successActions = document.getElementById('successActions');
+        const openLeadLink = document.getElementById('openLeadLink');
+        const tips = document.getElementById('tips');
+
+        async function startRecording() {
+            try {
+                hideAll();
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    stream.getTracks().forEach(track => track.stop());
+                    showSubmitState();
+                };
+
+                mediaRecorder.start();
+                startBtn.classList.add('hidden');
+                recordingState.classList.remove('hidden');
+
+            } catch (err) {
+                showError('Microphone access denied. Please allow microphone access and try again.');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+        }
+
+        function showSubmitState() {
+            recordingState.classList.add('hidden');
+            submitState.classList.remove('hidden');
+        }
+
+        async function previewAudio() {
+            if (!audioBlob) return;
+
+            hideAll();
+            processingText.textContent = 'Transcribing...';
+            processing.classList.remove('hidden');
+            tips.classList.add('hidden');
+
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+
+                const response = await fetch(API_URL + '/api/preview-lead', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    previewData = data;
+                    showPreview(data);
+                } else {
+                    showError(data.message || 'Could not extract lead info. Please try again.');
+                }
+
+            } catch (err) {
+                showError('Connection failed. Please check your internet connection.');
+            }
+        }
+
+        function showPreview(data) {
+            processing.classList.add('hidden');
+            previewStatus.classList.remove('hidden');
+            previewActions.classList.remove('hidden');
+
+            // Set lead name
+            const name = data.extracted_fields?.customer_name || 'New Lead';
+            previewLeadName.textContent = name;
+
+            // Build preview fields
+            previewFields.replaceChildren();
+
+            if (data.extracted_fields) {
+                const fields = data.extracted_fields;
+
+                if (fields.customer_name) addResultField(previewFields, 'Customer', fields.customer_name);
+                if (fields.contact_phone) addResultField(previewFields, 'Phone', fields.contact_phone);
+                if (fields.contact_email) addResultField(previewFields, 'Email', fields.contact_email);
+                if (fields.property_address) addResultField(previewFields, 'Property', fields.property_address);
+                if (fields.lead_source) addResultField(previewFields, 'Source', fields.lead_source);
+                if (fields.job_segment) addResultField(previewFields, 'Job Type', fields.job_segment);
+                if (fields.priority) addResultField(previewFields, 'Priority', fields.priority);
+            }
+
+            // Show transcription
+            if (data.transcription) {
+                previewTranscription.textContent = '"' + data.transcription + '"';
+            }
+        }
+
+        async function confirmLead() {
+            if (!previewData) return;
+
+            hideAll();
+            processingText.textContent = 'Creating lead...';
+            processing.classList.remove('hidden');
+
+            try {
+                const response = await fetch(API_URL + '/api/confirm-lead', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        transcription: previewData.transcription,
+                        extracted_fields: previewData.extracted_fields
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess(data);
+                } else {
+                    showError(data.message || 'Failed to create lead. Please try again.');
+                }
+
+            } catch (err) {
+                showError('Connection failed. Please check your internet connection.');
+            }
+        }
+
+        function showSuccess(data) {
+            processing.classList.add('hidden');
+            success.classList.remove('hidden');
+            successActions.classList.remove('hidden');
+
+            // Set lead name
+            leadName.textContent = data.lead_name || previewData?.extracted_fields?.customer_name || 'New Lead';
+
+            // Copy fields from preview
+            resultFields.replaceChildren();
+            if (previewData?.extracted_fields) {
+                const fields = previewData.extracted_fields;
+                if (fields.customer_name) addResultField(resultFields, 'Customer', fields.customer_name);
+                if (fields.contact_phone) addResultField(resultFields, 'Phone', fields.contact_phone);
+                if (fields.contact_email) addResultField(resultFields, 'Email', fields.contact_email);
+                if (fields.property_address) addResultField(resultFields, 'Property', fields.property_address);
+                if (fields.lead_source) addResultField(resultFields, 'Source', fields.lead_source);
+            }
+
+            // Set Airtable link
+            if (data.airtable_url) {
+                openLeadLink.href = data.airtable_url;
+                openLeadLink.classList.remove('hidden');
+            } else {
+                openLeadLink.classList.add('hidden');
+            }
+        }
+
+        function addResultField(container, label, value) {
+            const div = document.createElement('div');
+            div.className = 'result-field';
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'label';
+            labelSpan.textContent = label;
+
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'value';
+            valueSpan.textContent = value;
+
+            div.appendChild(labelSpan);
+            div.appendChild(valueSpan);
+            container.appendChild(div);
+        }
+
+        function showError(message) {
+            processing.classList.add('hidden');
+            previewStatus.classList.add('hidden');
+            error.classList.remove('hidden');
+            errorMessage.textContent = message;
+            submitState.classList.remove('hidden');
+        }
+
+        function hideAll() {
+            startBtn.classList.add('hidden');
+            recordingState.classList.add('hidden');
+            submitState.classList.add('hidden');
+            processing.classList.add('hidden');
+            previewStatus.classList.add('hidden');
+            previewActions.classList.add('hidden');
+            success.classList.add('hidden');
+            error.classList.add('hidden');
+            successActions.classList.add('hidden');
+        }
+
+        function reset() {
+            audioBlob = null;
+            audioChunks = [];
+            previewData = null;
+            hideAll();
+            startBtn.classList.remove('hidden');
+            tips.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
