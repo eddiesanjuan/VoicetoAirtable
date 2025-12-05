@@ -83,14 +83,6 @@
             color: white;
             animation: pulse 1.5s infinite;
         }
-        .record-btn.preview {
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            color: white;
-        }
-        .record-btn.preview:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
-        }
         .record-btn.submit {
             background: linear-gradient(135deg, #059669 0%, #10b981 100%);
             color: white;
@@ -164,10 +156,6 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        .status.preview {
-            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
-            color: #5b21b6;
-        }
         .status.success {
             background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
             color: #065f46;
@@ -176,11 +164,11 @@
             background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
             color: #991b1b;
         }
-        .success-icon, .preview-icon {
+        .success-icon {
             font-size: 48px;
             margin-bottom: 12px;
         }
-        .success-title, .preview-title {
+        .success-title {
             font-size: 20px;
             font-weight: 700;
             margin-bottom: 4px;
@@ -189,9 +177,8 @@
             font-weight: 600;
             font-size: 18px;
             margin: 8px 0 16px;
+            color: #047857;
         }
-        .preview .lead-name { color: #6d28d9; }
-        .success .lead-name { color: #047857; }
         .result-fields {
             background: white;
             padding: 16px;
@@ -219,18 +206,6 @@
             text-align: right;
             max-width: 60%;
         }
-        .transcription {
-            background: rgba(255,255,255,0.7);
-            padding: 12px 16px;
-            border-radius: 10px;
-            margin: 12px 0 0;
-            font-size: 13px;
-            font-style: italic;
-            text-align: left;
-            line-height: 1.5;
-        }
-        .preview .transcription { color: #6d28d9; }
-        .success .transcription { color: #047857; }
         .tips {
             background: #f8fafc;
             padding: 20px;
@@ -262,13 +237,40 @@
         a.btn-link {
             text-decoration: none;
         }
-        .ready-text {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #475569;
-            font-size: 15px;
-        }
         .hidden { display: none !important; }
+
+        /* Transcription editing */
+        .transcription-edit {
+            margin-bottom: 20px;
+        }
+        .transcription-edit label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        .transcription-edit textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 14px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 15px;
+            line-height: 1.5;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        .transcription-edit textarea:focus {
+            outline: none;
+            border-color: #1e3a5f;
+        }
+        .transcription-hint {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -286,14 +288,6 @@
         <div class="status processing hidden" id="processing">
             <span class="spinner"></span>
             <span id="processingText">Transcribing...</span>
-        </div>
-
-        <div class="status preview hidden" id="previewStatus">
-            <div class="preview-icon">&#128269;</div>
-            <div class="preview-title" id="previewTitle">Review Details</div>
-            <p class="lead-name" id="previewLeadName"></p>
-            <div class="result-fields" id="previewFields"></div>
-            <div class="transcription" id="previewTranscription"></div>
         </div>
 
         <div class="status success hidden" id="success">
@@ -329,31 +323,21 @@
                     Stop Recording
                 </button>
             </div>
-
-            <div class="hidden" id="submitState">
-                <p class="ready-text">Recording captured. Preview before creating lead.</p>
-                <div class="button-group">
-                    <button class="record-btn preview" onclick="previewAudio()">
-                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                        </svg>
-                        Preview
-                    </button>
-                    <button class="record-btn secondary" onclick="reset()">
-                        Re-record
-                    </button>
-                </div>
-            </div>
         </div>
 
-        <!-- Preview Actions -->
-        <div class="hidden" id="previewActions">
+        <!-- Transcription Edit State -->
+        <div class="hidden" id="editState">
+            <div class="transcription-edit">
+                <label for="transcriptionText">Review & Edit Transcription</label>
+                <textarea id="transcriptionText" placeholder="Your transcription will appear here..."></textarea>
+                <p class="transcription-hint">Edit if needed, then submit to create the record.</p>
+            </div>
             <div class="button-group">
-                <button class="record-btn submit" onclick="confirmLead()">
+                <button class="record-btn submit" onclick="submitTranscription()">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                     </svg>
-                    Create Lead
+                    Submit
                 </button>
                 <button class="record-btn secondary" onclick="reset()">
                     Re-record
@@ -395,27 +379,20 @@
 
     <script>
         // Configuration - auto-detect API URL from where page is served
-        // When served from backend (/recorder), origin is the API URL
         const API_URL = window.location.origin;
 
         // State
         let mediaRecorder = null;
         let audioChunks = [];
         let audioBlob = null;
-        let previewData = null; // Store preview response for confirmation
 
         // DOM Elements
         const startBtn = document.getElementById('startBtn');
         const recordingState = document.getElementById('recordingState');
-        const submitState = document.getElementById('submitState');
+        const editState = document.getElementById('editState');
+        const transcriptionText = document.getElementById('transcriptionText');
         const processing = document.getElementById('processing');
         const processingText = document.getElementById('processingText');
-        const previewStatus = document.getElementById('previewStatus');
-        const previewLeadName = document.getElementById('previewLeadName');
-        const previewFields = document.getElementById('previewFields');
-        const previewTranscription = document.getElementById('previewTranscription');
-        const previewActions = document.getElementById('previewActions');
-        const previewTitle = document.getElementById('previewTitle');
         const success = document.getElementById('success');
         const successTitle = document.getElementById('successTitle');
         const error = document.getElementById('error');
@@ -428,15 +405,16 @@
 
         // Intent display configuration
         const intentConfig = {
-            'new_lead': { title: 'New Lead', successTitle: 'Lead Created!', icon: '👤' },
-            'call_note': { title: 'Call Note', successTitle: 'Activity Logged!', icon: '📞' },
-            'status_update': { title: 'Status Update', successTitle: 'Status Updated!', icon: '📊' },
-            'task': { title: 'New Task', successTitle: 'Task Created!', icon: '✅' }
+            'new_lead': { title: 'New Lead', successTitle: 'Lead Created!', icon: '&#128100;' },
+            'call_note': { title: 'Call Note', successTitle: 'Activity Logged!', icon: '&#128222;' },
+            'status_update': { title: 'Status Update', successTitle: 'Status Updated!', icon: '&#128202;' },
+            'task': { title: 'New Task', successTitle: 'Task Created!', icon: '&#9989;' }
         };
 
         async function startRecording() {
             try {
                 hideAll();
+                tips.classList.add('hidden');
 
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -449,7 +427,7 @@
                 mediaRecorder.onstop = () => {
                     audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     stream.getTracks().forEach(track => track.stop());
-                    showSubmitState();
+                    transcribeAudio();
                 };
 
                 mediaRecorder.start();
@@ -458,6 +436,7 @@
 
             } catch (err) {
                 showError('Microphone access denied. Please allow microphone access and try again.');
+                tips.classList.remove('hidden');
             }
         }
 
@@ -467,37 +446,28 @@
             }
         }
 
-        function showSubmitState() {
-            recordingState.classList.add('hidden');
-            submitState.classList.remove('hidden');
-        }
-
-        async function previewAudio() {
+        async function transcribeAudio() {
             if (!audioBlob) return;
 
             hideAll();
-            processingText.textContent = 'Processing...';
+            processingText.textContent = 'Transcribing...';
             processing.classList.remove('hidden');
-            tips.classList.add('hidden');
 
             try {
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recording.webm');
 
-                // Use the multi-intent endpoint directly (it handles everything)
-                const response = await fetch(API_URL + '/api/voice-crm', {
+                const response = await fetch(API_URL + '/api/transcribe', {
                     method: 'POST',
                     body: formData
                 });
 
                 const data = await response.json();
-                previewData = data;
 
-                if (data.success) {
-                    // Show success directly since we already created the record
-                    showSuccess(data);
+                if (data.transcription) {
+                    showEditState(data.transcription);
                 } else {
-                    showError(data.message || 'Could not process your request. Please try again.');
+                    showError('Could not transcribe audio. Please try again.');
                 }
 
             } catch (err) {
@@ -505,59 +475,39 @@
             }
         }
 
-        function showPreview(data) {
+        function showEditState(transcription) {
             processing.classList.add('hidden');
-            previewStatus.classList.remove('hidden');
-            previewActions.classList.remove('hidden');
-
-            // Set lead name
-            const name = data.extracted_fields?.customer_name || 'New Lead';
-            previewLeadName.textContent = name;
-
-            // Build preview fields
-            previewFields.replaceChildren();
-
-            if (data.extracted_fields) {
-                const fields = data.extracted_fields;
-
-                if (fields.customer_name) addResultField(previewFields, 'Customer', fields.customer_name);
-                if (fields.contact_phone) addResultField(previewFields, 'Phone', fields.contact_phone);
-                if (fields.contact_email) addResultField(previewFields, 'Email', fields.contact_email);
-                if (fields.property_address) addResultField(previewFields, 'Property', fields.property_address);
-                if (fields.lead_source) addResultField(previewFields, 'Source', fields.lead_source);
-                if (fields.job_segment) addResultField(previewFields, 'Job Type', fields.job_segment);
-                if (fields.priority) addResultField(previewFields, 'Priority', fields.priority);
-            }
-
-            // Show transcription
-            if (data.transcription) {
-                previewTranscription.textContent = '"' + data.transcription + '"';
-            }
+            editState.classList.remove('hidden');
+            transcriptionText.value = transcription;
+            transcriptionText.focus();
         }
 
-        async function confirmLead() {
-            if (!previewData) return;
+        async function submitTranscription() {
+            const text = transcriptionText.value.trim();
+            if (!text) {
+                showError('Please enter some text before submitting.');
+                return;
+            }
 
             hideAll();
-            processingText.textContent = 'Creating lead...';
+            processingText.textContent = 'Processing...';
             processing.classList.remove('hidden');
 
             try {
-                const response = await fetch(API_URL + '/api/confirm-lead', {
+                const response = await fetch(API_URL + '/webhook/wispr', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        transcription: previewData.transcription,
-                        extracted_fields: previewData.extracted_fields
-                    })
+                    body: JSON.stringify({ transcription: text })
                 });
 
                 const data = await response.json();
 
-                if (data.success) {
+                if (data.status === 'created' || data.status === 'updated') {
                     showSuccess(data);
+                } else if (data.status === 'error') {
+                    showError(data.message || 'Failed to create record. Please try again.');
                 } else {
-                    showError(data.message || 'Failed to create lead. Please try again.');
+                    showError(data.message || 'Could not process your request.');
                 }
 
             } catch (err) {
@@ -578,36 +528,20 @@
             successTitle.textContent = config.successTitle;
 
             // Set record name
-            leadName.textContent = data.record_name || data.lead_name || 'Record Created';
+            leadName.textContent = data.record_name || 'Record Created';
 
             // Build result fields based on intent
             resultFields.replaceChildren();
             addResultField(resultFields, 'Type', config.title);
 
-            if (data.extracted_fields) {
-                const fields = data.extracted_fields;
-
-                if (intent === 'new_lead') {
-                    if (fields.customer_name) addResultField(resultFields, 'Customer', fields.customer_name);
-                    if (fields.contact_phone) addResultField(resultFields, 'Phone', fields.contact_phone);
-                    if (fields.property_address) addResultField(resultFields, 'Property', fields.property_address);
-                    if (fields.lead_source) addResultField(resultFields, 'Source', fields.lead_source);
-                } else if (intent === 'call_note') {
-                    if (fields.lead_identifier) addResultField(resultFields, 'Lead', fields.lead_identifier);
-                    if (fields.activity_type) addResultField(resultFields, 'Activity', fields.activity_type);
-                    if (fields.summary) addResultField(resultFields, 'Summary', fields.summary);
-                    if (fields.outcome) addResultField(resultFields, 'Outcome', fields.outcome);
-                    if (data.lead_found === false) addResultField(resultFields, 'Note', 'Lead not linked (not found)');
-                } else if (intent === 'status_update') {
-                    if (fields.lead_identifier) addResultField(resultFields, 'Lead', fields.lead_identifier);
-                    if (fields.new_status) addResultField(resultFields, 'New Status', fields.new_status);
-                    if (fields.reason) addResultField(resultFields, 'Reason', fields.reason);
-                } else if (intent === 'task') {
-                    if (fields.title) addResultField(resultFields, 'Task', fields.title);
-                    if (fields.lead_identifier) addResultField(resultFields, 'Lead', fields.lead_identifier);
-                    if (fields.due_date) addResultField(resultFields, 'Due', fields.due_date);
-                    if (fields.priority) addResultField(resultFields, 'Priority', fields.priority);
-                }
+            if (data.fields_populated && data.fields_populated.length > 0) {
+                // Show a subset of key populated fields
+                const keyFields = data.fields_populated.slice(0, 4);
+                keyFields.forEach(field => {
+                    if (!field.includes('(default)') && !field.includes('Notes')) {
+                        addResultField(resultFields, field, '&#10003;');
+                    }
+                });
             }
 
             // Set Airtable link
@@ -629,7 +563,7 @@
 
             const valueSpan = document.createElement('span');
             valueSpan.className = 'value';
-            valueSpan.textContent = value;
+            valueSpan.innerHTML = value;
 
             div.appendChild(labelSpan);
             div.appendChild(valueSpan);
@@ -638,19 +572,21 @@
 
         function showError(message) {
             processing.classList.add('hidden');
-            previewStatus.classList.add('hidden');
+            editState.classList.add('hidden');
             error.classList.remove('hidden');
             errorMessage.textContent = message;
-            submitState.classList.remove('hidden');
+
+            // Show re-record option
+            setTimeout(() => {
+                editState.classList.remove('hidden');
+            }, 100);
         }
 
         function hideAll() {
             startBtn.classList.add('hidden');
             recordingState.classList.add('hidden');
-            submitState.classList.add('hidden');
+            editState.classList.add('hidden');
             processing.classList.add('hidden');
-            previewStatus.classList.add('hidden');
-            previewActions.classList.add('hidden');
             success.classList.add('hidden');
             error.classList.add('hidden');
             successActions.classList.add('hidden');
@@ -659,10 +595,11 @@
         function reset() {
             audioBlob = null;
             audioChunks = [];
-            previewData = null;
+            transcriptionText.value = '';
             hideAll();
             startBtn.classList.remove('hidden');
             tips.classList.remove('hidden');
+            error.classList.add('hidden');
         }
     </script>
 </body>

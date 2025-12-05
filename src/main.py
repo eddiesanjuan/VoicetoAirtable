@@ -638,7 +638,7 @@ async def create_airtable_lead(lead: ExtractedLead) -> CreateLeadResponse:
                 return CreateLeadResponse(
                     status="created",
                     record_id=record_id,
-                    lead_name=fields.get("Lead Name", "Unknown"),
+                    lead_name=lead.customer_name or "New Lead",
                     fields_populated=fields_populated,
                     message=f"Successfully created lead for {lead.customer_name or 'unknown customer'}",
                     airtable_url=airtable_url
