@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Voice-to-Airtable",
     description="EF San Juan multi-intent voice CRM interface",
-    version="0.3.0"
+    version="0.4.0"  # Added sales rep identification
 )
 
 # Add CORS for Airtable Interface Extension
@@ -79,6 +79,7 @@ CRM_BASE_ID = os.getenv("EF_SANJUAN_CRM_BASE_ID")
 LEADS_TABLE_ID = os.getenv("LEADS_TABLE_ID", "tblK6HaTTVYqeFtd7")
 ACTIVITIES_TABLE_ID = os.getenv("ACTIVITIES_TABLE_ID", "tblHVYlHL5UzUzAbB")
 TASKS_TABLE_ID = os.getenv("TASKS_TABLE_ID", "tblj9Isash4ukT4Nw")
+SALES_REPS_TABLE_ID = os.getenv("SALES_REPS_TABLE_ID", "tbl5LwMtRBTe7X1f6")
 
 # =============================================================================
 # Pydantic Models
@@ -90,6 +91,14 @@ class WisprWebhook(BaseModel):
     timestamp: Optional[str] = None
     user_id: Optional[str] = None
     audio_duration: Optional[float] = None
+    sales_rep_id: Optional[str] = None  # Airtable record ID of the sales rep using the system
+
+
+class SalesRep(BaseModel):
+    """Sales rep data from Airtable"""
+    id: str
+    name: str
+    email: Optional[str] = None
 
 
 class IntentResult(BaseModel):
@@ -507,15 +516,23 @@ async def extract_task_fields(transcription: str) -> ExtractedTask:
         return ExtractedTask(raw_transcription=transcription)
 
 
-async def find_lead_by_identifier(identifier: str) -> Optional[dict]:
-    """Search for a lead by name or phone number."""
+async def find_lead_by_identifier(identifier: str, sales_rep_id: Optional[str] = None) -> Optional[dict]:
+    """Search for a lead by name or phone number, optionally filtered by sales rep."""
     if not all([AIRTABLE_API_KEY, CRM_BASE_ID, LEADS_TABLE_ID]):
         logger.error("Airtable configuration missing for lead search")
         return None
 
-    # Try to find lead by Customer Name or Contact Phone
-    # Using SEARCH to find partial matches
-    formula = f"OR(SEARCH(LOWER(\"{identifier}\"), LOWER({{Customer Name}})), SEARCH(\"{identifier}\", {{Contact Phone}}))"
+    # Build search formula
+    # Base search: Customer Name or Contact Phone contains identifier
+    search_formula = f"OR(SEARCH(LOWER(\"{identifier}\"), LOWER({{Customer Name}})), SEARCH(\"{identifier}\", {{Contact Phone}}))"
+
+    # If sales rep provided, also filter by Assigned Sales Rep
+    if sales_rep_id:
+        # Leads table has "Assigned Sales Rep" linked to Sales Reps
+        # Filter to only show leads assigned to this rep
+        formula = f"AND({search_formula}, FIND(\"{sales_rep_id}\", ARRAYJOIN(RECORD_ID({{Assigned Sales Rep}}))))"
+    else:
+        formula = search_formula
 
     url = f"https://api.airtable.com/v0/{CRM_BASE_ID}/{LEADS_TABLE_ID}"
     headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
@@ -552,7 +569,46 @@ async def find_lead_by_identifier(identifier: str) -> Optional[dict]:
         return None
 
 
-async def create_airtable_lead(lead: ExtractedLead) -> CreateLeadResponse:
+async def get_all_sales_reps() -> list[SalesRep]:
+    """Fetch all sales reps from Airtable."""
+    if not all([AIRTABLE_API_KEY, CRM_BASE_ID, SALES_REPS_TABLE_ID]):
+        logger.error("Airtable configuration missing for sales reps")
+        return []
+
+    url = f"https://api.airtable.com/v0/{CRM_BASE_ID}/{SALES_REPS_TABLE_ID}"
+    headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
+    params = {
+        "fields[]": ["Name", "Email"],
+        "sort[0][field]": "Name",
+        "sort[0][direction]": "asc"
+    }
+
+    try:
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.get(url, headers=headers, params=params)
+
+            if response.status_code == 200:
+                data = response.json()
+                reps = []
+                for record in data.get("records", []):
+                    fields = record.get("fields", {})
+                    reps.append(SalesRep(
+                        id=record.get("id"),
+                        name=fields.get("Name", "Unknown"),
+                        email=fields.get("Email")
+                    ))
+                logger.info(f"Fetched {len(reps)} sales reps")
+                return reps
+            else:
+                logger.error(f"Sales reps fetch failed: {response.status_code} - {response.text}")
+                return []
+
+    except Exception as e:
+        logger.error(f"Sales reps fetch error: {e}")
+        return []
+
+
+async def create_airtable_lead(lead: ExtractedLead, sales_rep_id: Optional[str] = None) -> CreateLeadResponse:
     """Create a new Lead record in EF San Juan CRM via Airtable API."""
 
     if not all([AIRTABLE_API_KEY, CRM_BASE_ID, LEADS_TABLE_ID]):
@@ -605,6 +661,11 @@ async def create_airtable_lead(lead: ExtractedLead) -> CreateLeadResponse:
     if lead.priority:
         fields["Priority"] = lead.priority
         fields_populated.append("Priority")
+
+    # Assign to sales rep if provided
+    if sales_rep_id:
+        fields["Assigned Sales Rep"] = [sales_rep_id]  # Linked record field needs array
+        fields_populated.append("Assigned Sales Rep")
 
     # Always set status to New (valid options: New, Contacted, Qualified, Converted to Opportunity, Lost)
     fields["Status"] = "New"
@@ -662,7 +723,7 @@ async def create_airtable_lead(lead: ExtractedLead) -> CreateLeadResponse:
         )
 
 
-async def create_airtable_activity(note: ExtractedCallNote, lead_id: Optional[str] = None) -> CreateRecordResponse:
+async def create_airtable_activity(note: ExtractedCallNote, lead_id: Optional[str] = None, sales_rep_id: Optional[str] = None) -> CreateRecordResponse:
     """Create a new Activity record in EF San Juan CRM."""
 
     if not all([AIRTABLE_API_KEY, CRM_BASE_ID, ACTIVITIES_TABLE_ID]):
@@ -711,6 +772,11 @@ async def create_airtable_activity(note: ExtractedCallNote, lead_id: Optional[st
     if lead_id:
         fields["Related Lead"] = [lead_id]  # Linked record field needs array
         fields_populated.append("Related Lead")
+
+    # Link to sales rep if provided
+    if sales_rep_id:
+        fields["Sales Rep"] = [sales_rep_id]  # Linked record field needs array
+        fields_populated.append("Sales Rep")
 
     # Add raw transcription to notes
     if fields.get("Notes"):
@@ -849,7 +915,7 @@ async def update_airtable_lead_status(update: ExtractedStatusUpdate, lead_id: st
         )
 
 
-async def create_airtable_task(task: ExtractedTask, lead_id: Optional[str] = None) -> CreateRecordResponse:
+async def create_airtable_task(task: ExtractedTask, lead_id: Optional[str] = None, sales_rep_id: Optional[str] = None) -> CreateRecordResponse:
     """Create a new Task record in EF San Juan CRM."""
 
     if not all([AIRTABLE_API_KEY, CRM_BASE_ID, TASKS_TABLE_ID]):
@@ -912,6 +978,11 @@ async def create_airtable_task(task: ExtractedTask, lead_id: Optional[str] = Non
     if lead_id:
         fields["Leads"] = [lead_id]  # The link field to Leads table
         fields_populated.append("Leads")
+
+    # Assign to sales rep if provided
+    if sales_rep_id:
+        fields["Assigned To"] = [sales_rep_id]  # Linked record to Sales Reps
+        fields_populated.append("Assigned To")
 
     # Add raw transcription to notes
     if fields.get("Notes"):
@@ -989,13 +1060,30 @@ async def serve_recorder():
     return FileResponse(recorder_path, media_type="text/html")
 
 
+@app.get("/api/sales-reps")
+async def list_sales_reps():
+    """
+    List all sales reps for the user selection dropdown.
+    Returns: List of {id, name, email} for each sales rep.
+    """
+    reps = await get_all_sales_reps()
+    return {
+        "success": True,
+        "sales_reps": [{"id": r.id, "name": r.name, "email": r.email} for r in reps]
+    }
+
+
 @app.post("/webhook/wispr")
 async def wispr_webhook(payload: WisprWebhook):
     """
     Receive voice transcription from Wispr and process based on intent.
     Supports: new_lead, call_note, status_update, task
+
+    Optional sales_rep_id parameter scopes lead searches and assigns records to that rep.
     """
     logger.info(f"Received transcription: {payload.transcription[:100]}...")
+    if payload.sales_rep_id:
+        logger.info(f"Sales rep ID: {payload.sales_rep_id}")
 
     # Classify intent
     intent_result = await classify_intent(payload.transcription)
@@ -1004,7 +1092,7 @@ async def wispr_webhook(payload: WisprWebhook):
     # Route based on intent (same logic as voice-crm endpoint)
     if intent_result.intent == "new_lead":
         extracted = await extract_lead_fields(payload.transcription)
-        result = await create_airtable_lead(extracted)
+        result = await create_airtable_lead(extracted, sales_rep_id=payload.sales_rep_id)
         return {
             "status": result.status,
             "intent": "new_lead",
@@ -1020,10 +1108,10 @@ async def wispr_webhook(payload: WisprWebhook):
         extracted = await extract_call_note_fields(payload.transcription)
         lead_id = None
         if extracted.lead_identifier:
-            lead = await find_lead_by_identifier(extracted.lead_identifier)
+            lead = await find_lead_by_identifier(extracted.lead_identifier, sales_rep_id=payload.sales_rep_id)
             if lead:
                 lead_id = lead["id"]
-        result = await create_airtable_activity(extracted, lead_id)
+        result = await create_airtable_activity(extracted, lead_id, sales_rep_id=payload.sales_rep_id)
         return {
             "status": result.status,
             "intent": "call_note",
@@ -1039,7 +1127,7 @@ async def wispr_webhook(payload: WisprWebhook):
         extracted = await extract_status_update_fields(payload.transcription)
         if not extracted.lead_identifier:
             return {"status": "error", "intent": "status_update", "message": "Could not identify lead to update"}
-        lead = await find_lead_by_identifier(extracted.lead_identifier)
+        lead = await find_lead_by_identifier(extracted.lead_identifier, sales_rep_id=payload.sales_rep_id)
         if not lead:
             return {"status": "error", "intent": "status_update", "message": f"Lead not found: {extracted.lead_identifier}"}
         result = await update_airtable_lead_status(extracted, lead["id"], lead["name"])
@@ -1058,10 +1146,10 @@ async def wispr_webhook(payload: WisprWebhook):
         extracted = await extract_task_fields(payload.transcription)
         lead_id = None
         if extracted.lead_identifier:
-            lead = await find_lead_by_identifier(extracted.lead_identifier)
+            lead = await find_lead_by_identifier(extracted.lead_identifier, sales_rep_id=payload.sales_rep_id)
             if lead:
                 lead_id = lead["id"]
-        result = await create_airtable_task(extracted, lead_id)
+        result = await create_airtable_task(extracted, lead_id, sales_rep_id=payload.sales_rep_id)
         return {
             "status": result.status,
             "intent": "task",

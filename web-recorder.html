@@ -239,6 +239,102 @@
         }
         .hidden { display: none !important; }
 
+        /* User header */
+        .user-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 12px;
+            border: 1px solid #bae6fd;
+        }
+        .user-header .user-name {
+            font-weight: 600;
+            color: #0369a1;
+        }
+        .user-header .switch-btn {
+            font-size: 12px;
+            color: #64748b;
+            text-decoration: underline;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        .user-header .switch-btn:hover {
+            color: #1e3a5f;
+        }
+
+        /* Sales rep selection overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .overlay-content {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .overlay-content h2 {
+            color: #1f2937;
+            font-size: 20px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .overlay-content p {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .rep-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .rep-option {
+            padding: 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .rep-option:hover {
+            border-color: #1e3a5f;
+            background: #f8fafc;
+        }
+        .rep-option .rep-name {
+            font-weight: 600;
+            color: #111827;
+            font-size: 16px;
+        }
+        .rep-option .rep-email {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .loading-reps {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+
         /* Transcription editing */
         .transcription-edit {
             margin-bottom: 20px;
@@ -274,7 +370,25 @@
     </style>
 </head>
 <body>
+    <!-- Sales Rep Selection Overlay -->
+    <div class="overlay hidden" id="repSelectionOverlay">
+        <div class="overlay-content">
+            <h2>Select Your Name</h2>
+            <p>Choose your profile to get started</p>
+            <div class="rep-list" id="repList">
+                <div class="loading-reps">Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
+        <!-- User Header (shows after selection) -->
+        <div class="user-header hidden" id="userHeader">
+            <span>Logged in as</span>
+            <span class="user-name" id="currentUserName">-</span>
+            <button class="switch-btn" onclick="showRepSelection()">Switch</button>
+        </div>
+
         <!-- Logo -->
         <div class="logo">
             <div class="logo-text">EF San Juan</div>
@@ -381,6 +495,9 @@
         // Configuration - auto-detect API URL from where page is served
         const API_URL = window.location.origin;
 
+        // Sales Rep State (persisted in localStorage)
+        let currentSalesRep = null;  // { id: string, name: string, email: string }
+
         // State
         let mediaRecorder = null;
         let audioChunks = [];
@@ -402,6 +519,10 @@
         const successActions = document.getElementById('successActions');
         const openLeadLink = document.getElementById('openLeadLink');
         const tips = document.getElementById('tips');
+        const repSelectionOverlay = document.getElementById('repSelectionOverlay');
+        const repList = document.getElementById('repList');
+        const userHeader = document.getElementById('userHeader');
+        const currentUserName = document.getElementById('currentUserName');
 
         // Intent display configuration
         const intentConfig = {
@@ -410,6 +531,72 @@
             'status_update': { title: 'Status Update', successTitle: 'Status Updated!', icon: '&#128202;' },
             'task': { title: 'New Task', successTitle: 'Task Created!', icon: '&#9989;' }
         };
+
+        // ===========================================
+        // Sales Rep Selection Functions
+        // ===========================================
+
+        async function loadSalesReps() {
+            try {
+                const response = await fetch(API_URL + '/api/sales-reps');
+                const data = await response.json();
+
+                if (data.success && data.sales_reps.length > 0) {
+                    repList.innerHTML = '';
+                    data.sales_reps.forEach(rep => {
+                        const option = document.createElement('div');
+                        option.className = 'rep-option';
+                        option.onclick = () => selectSalesRep(rep);
+                        option.innerHTML = `
+                            <div class="rep-name">${rep.name}</div>
+                            ${rep.email ? `<div class="rep-email">${rep.email}</div>` : ''}
+                        `;
+                        repList.appendChild(option);
+                    });
+                } else {
+                    repList.innerHTML = '<div class="loading-reps">No sales reps found. Please check Airtable configuration.</div>';
+                }
+            } catch (err) {
+                console.error('Failed to load sales reps:', err);
+                repList.innerHTML = '<div class="loading-reps">Failed to load sales reps. Please refresh.</div>';
+            }
+        }
+
+        function selectSalesRep(rep) {
+            currentSalesRep = rep;
+            localStorage.setItem('voiceCRM_salesRep', JSON.stringify(rep));
+
+            // Update UI
+            currentUserName.textContent = rep.name;
+            userHeader.classList.remove('hidden');
+            repSelectionOverlay.classList.add('hidden');
+
+            console.log('Selected sales rep:', rep.name, rep.id);
+        }
+
+        function showRepSelection() {
+            loadSalesReps();
+            repSelectionOverlay.classList.remove('hidden');
+        }
+
+        function initSalesRep() {
+            // Check localStorage for existing selection
+            const stored = localStorage.getItem('voiceCRM_salesRep');
+            if (stored) {
+                try {
+                    currentSalesRep = JSON.parse(stored);
+                    currentUserName.textContent = currentSalesRep.name;
+                    userHeader.classList.remove('hidden');
+                    console.log('Restored sales rep:', currentSalesRep.name);
+                } catch (e) {
+                    // Invalid stored data, show selection
+                    showRepSelection();
+                }
+            } else {
+                // No stored rep, show selection
+                showRepSelection();
+            }
+        }
 
         async function startRecording() {
             try {
@@ -489,15 +676,27 @@
                 return;
             }
 
+            // Require sales rep selection
+            if (!currentSalesRep) {
+                showRepSelection();
+                return;
+            }
+
             hideAll();
             processingText.textContent = 'Processing...';
             processing.classList.remove('hidden');
 
             try {
+                // Include sales_rep_id in the request
+                const payload = {
+                    transcription: text,
+                    sales_rep_id: currentSalesRep.id
+                };
+
                 const response = await fetch(API_URL + '/webhook/wispr', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transcription: text })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
@@ -601,6 +800,11 @@
             tips.classList.remove('hidden');
             error.classList.add('hidden');
         }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initSalesRep();
+        });
     </script>
 </body>
 </html>
