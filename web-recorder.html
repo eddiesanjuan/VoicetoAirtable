@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice to Lead - EF San Juan CRM</title>
+    <title>Voice CRM - EF San Juan</title>
     <style>
         * {
             box-sizing: border-box;
@@ -279,8 +279,8 @@
             <div class="logo-subtitle">Custom Millwork</div>
         </div>
 
-        <h1>Add Lead by Voice</h1>
-        <p class="subtitle">Record a quick voice note to create a new lead</p>
+        <h1>Voice CRM</h1>
+        <p class="subtitle">Add leads, log calls, update status, or create tasks</p>
 
         <!-- Status Messages -->
         <div class="status processing hidden" id="processing">
@@ -290,7 +290,7 @@
 
         <div class="status preview hidden" id="previewStatus">
             <div class="preview-icon">&#128269;</div>
-            <div class="preview-title">Review Lead Details</div>
+            <div class="preview-title" id="previewTitle">Review Details</div>
             <p class="lead-name" id="previewLeadName"></p>
             <div class="result-fields" id="previewFields"></div>
             <div class="transcription" id="previewTranscription"></div>
@@ -298,7 +298,7 @@
 
         <div class="status success hidden" id="success">
             <div class="success-icon">&#10003;</div>
-            <div class="success-title">Lead Created!</div>
+            <div class="success-title" id="successTitle">Success!</div>
             <p class="lead-name" id="leadName"></p>
             <div class="result-fields" id="resultFields"></div>
         </div>
@@ -383,12 +383,12 @@
 
         <!-- Tips -->
         <div class="tips" id="tips">
-            <h3>Quick Tips</h3>
+            <h3>What You Can Say</h3>
             <ul>
-                <li><strong>Name & contact:</strong> "John Smith, 555-123-4567"</li>
-                <li><strong>Location:</strong> "Beach house in Destin"</li>
-                <li><strong>Source:</strong> "Referral from the Hendersons"</li>
-                <li><strong>Project:</strong> "Custom doors and windows"</li>
+                <li><strong>New Lead:</strong> "New lead from John Smith at 555-1234, interested in custom doors"</li>
+                <li><strong>Call Note:</strong> "Just talked to John Smith, he wants to schedule a site visit next week"</li>
+                <li><strong>Status Update:</strong> "Mark John Smith as qualified, he's ready to move forward"</li>
+                <li><strong>Task:</strong> "Remind me to call John Smith tomorrow about the quote"</li>
             </ul>
         </div>
     </div>
@@ -416,7 +416,9 @@
         const previewFields = document.getElementById('previewFields');
         const previewTranscription = document.getElementById('previewTranscription');
         const previewActions = document.getElementById('previewActions');
+        const previewTitle = document.getElementById('previewTitle');
         const success = document.getElementById('success');
+        const successTitle = document.getElementById('successTitle');
         const error = document.getElementById('error');
         const errorMessage = document.getElementById('errorMessage');
         const leadName = document.getElementById('leadName');
@@ -424,6 +426,14 @@
         const successActions = document.getElementById('successActions');
         const openLeadLink = document.getElementById('openLeadLink');
         const tips = document.getElementById('tips');
+
+        // Intent display configuration
+        const intentConfig = {
+            'new_lead': { title: 'New Lead', successTitle: 'Lead Created!', icon: '👤' },
+            'call_note': { title: 'Call Note', successTitle: 'Activity Logged!', icon: '📞' },
+            'status_update': { title: 'Status Update', successTitle: 'Status Updated!', icon: '📊' },
+            'task': { title: 'New Task', successTitle: 'Task Created!', icon: '✅' }
+        };
 
         async function startRecording() {
             try {
@@ -467,7 +477,7 @@
             if (!audioBlob) return;
 
             hideAll();
-            processingText.textContent = 'Transcribing...';
+            processingText.textContent = 'Processing...';
             processing.classList.remove('hidden');
             tips.classList.add('hidden');
 
@@ -475,18 +485,20 @@
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recording.webm');
 
-                const response = await fetch(API_URL + '/api/preview-lead', {
+                // Use the multi-intent endpoint directly (it handles everything)
+                const response = await fetch(API_URL + '/api/voice-crm', {
                     method: 'POST',
                     body: formData
                 });
 
                 const data = await response.json();
+                previewData = data;
 
                 if (data.success) {
-                    previewData = data;
-                    showPreview(data);
+                    // Show success directly since we already created the record
+                    showSuccess(data);
                 } else {
-                    showError(data.message || 'Could not extract lead info. Please try again.');
+                    showError(data.message || 'Could not process your request. Please try again.');
                 }
 
             } catch (err) {
@@ -559,18 +571,44 @@
             success.classList.remove('hidden');
             successActions.classList.remove('hidden');
 
-            // Set lead name
-            leadName.textContent = data.lead_name || previewData?.extracted_fields?.customer_name || 'New Lead';
+            // Get intent-specific config
+            const intent = data.intent || 'new_lead';
+            const config = intentConfig[intent] || intentConfig['new_lead'];
 
-            // Copy fields from preview
+            // Set title based on intent
+            successTitle.textContent = config.successTitle;
+
+            // Set record name
+            leadName.textContent = data.record_name || data.lead_name || 'Record Created';
+
+            // Build result fields based on intent
             resultFields.replaceChildren();
-            if (previewData?.extracted_fields) {
-                const fields = previewData.extracted_fields;
-                if (fields.customer_name) addResultField(resultFields, 'Customer', fields.customer_name);
-                if (fields.contact_phone) addResultField(resultFields, 'Phone', fields.contact_phone);
-                if (fields.contact_email) addResultField(resultFields, 'Email', fields.contact_email);
-                if (fields.property_address) addResultField(resultFields, 'Property', fields.property_address);
-                if (fields.lead_source) addResultField(resultFields, 'Source', fields.lead_source);
+            addResultField(resultFields, 'Type', config.title);
+
+            if (data.extracted_fields) {
+                const fields = data.extracted_fields;
+
+                if (intent === 'new_lead') {
+                    if (fields.customer_name) addResultField(resultFields, 'Customer', fields.customer_name);
+                    if (fields.contact_phone) addResultField(resultFields, 'Phone', fields.contact_phone);
+                    if (fields.property_address) addResultField(resultFields, 'Property', fields.property_address);
+                    if (fields.lead_source) addResultField(resultFields, 'Source', fields.lead_source);
+                } else if (intent === 'call_note') {
+                    if (fields.lead_identifier) addResultField(resultFields, 'Lead', fields.lead_identifier);
+                    if (fields.activity_type) addResultField(resultFields, 'Activity', fields.activity_type);
+                    if (fields.summary) addResultField(resultFields, 'Summary', fields.summary);
+                    if (fields.outcome) addResultField(resultFields, 'Outcome', fields.outcome);
+                    if (data.lead_found === false) addResultField(resultFields, 'Note', 'Lead not linked (not found)');
+                } else if (intent === 'status_update') {
+                    if (fields.lead_identifier) addResultField(resultFields, 'Lead', fields.lead_identifier);
+                    if (fields.new_status) addResultField(resultFields, 'New Status', fields.new_status);
+                    if (fields.reason) addResultField(resultFields, 'Reason', fields.reason);
+                } else if (intent === 'task') {
+                    if (fields.title) addResultField(resultFields, 'Task', fields.title);
+                    if (fields.lead_identifier) addResultField(resultFields, 'Lead', fields.lead_identifier);
+                    if (fields.due_date) addResultField(resultFields, 'Due', fields.due_date);
+                    if (fields.priority) addResultField(resultFields, 'Priority', fields.priority);
+                }
             }
 
             // Set Airtable link
