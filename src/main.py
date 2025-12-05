@@ -204,7 +204,7 @@ Extract these fields if present (leave null if not mentioned):
 - contact_phone: Phone number (format as XXX-XXX-XXXX if possible)
 - contact_email: Email address
 - property_address: Property/project address (include city if mentioned)
-- lead_source: How they heard about us. Map to: Referral, Website, Walk-in, Phone Call, Repeat Customer, Other
+- lead_source: How they heard about us. Map to: Referral, Website, Walk-in, Repeat Customer, Trade Show, Social Media, Other
 - job_segment: Type of project. Map to:
   - RR = Residential Remodel/Renovation
   - RN = Residential New Construction
@@ -589,11 +589,14 @@ async def create_airtable_lead(lead: ExtractedLead) -> CreateLeadResponse:
         fields_populated.append("Contact Email")
 
     if lead.lead_source:
-        fields["Lead Source"] = lead.lead_source
-        fields_populated.append("Lead Source")
-    else:
-        fields["Lead Source"] = "Phone Call"  # Default
-        fields_populated.append("Lead Source (default)")
+        # Validate against allowed values
+        valid_sources = ["Referral", "Website", "Walk-in", "Repeat Customer", "Trade Show", "Social Media", "Other"]
+        if lead.lead_source in valid_sources:
+            fields["Lead Source"] = lead.lead_source
+            fields_populated.append("Lead Source")
+        else:
+            fields["Lead Source"] = "Other"
+            fields_populated.append("Lead Source (mapped to Other)")
 
     if lead.job_segment:
         fields["Job Segment"] = lead.job_segment
@@ -650,10 +653,11 @@ async def create_airtable_lead(lead: ExtractedLead) -> CreateLeadResponse:
                 )
 
     except Exception as e:
-        logger.error(f"Airtable request error: {e}")
+        import traceback
+        logger.error(f"Airtable request error: {e}\n{traceback.format_exc()}")
         return CreateLeadResponse(
             status="error",
-            message=str(e),
+            message=str(e) or "Unknown Airtable error",
             fields_populated=fields_populated
         )
 
