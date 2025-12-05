@@ -285,39 +285,74 @@
         .overlay-content {
             background: white;
             border-radius: 20px;
-            padding: 32px;
-            max-width: 400px;
+            padding: 28px;
+            max-width: 360px;
             width: 100%;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
         .overlay-content h2 {
             color: #1f2937;
             font-size: 20px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             text-align: center;
         }
         .overlay-content p {
             color: #64748b;
             font-size: 14px;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
             text-align: center;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 15px;
+            margin-bottom: 12px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-input:focus {
+            border-color: #1e3a5f;
+        }
+        .search-input::placeholder {
+            color: #9ca3af;
         }
         .rep-list {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
+            overflow-y: auto;
+            max-height: 50vh;
+            padding-right: 4px;
+        }
+        .rep-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .rep-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        .rep-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
         }
         .rep-option {
-            padding: 16px;
+            padding: 14px 16px;
             border: 2px solid #e5e7eb;
             border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.15s;
             text-align: left;
+            flex-shrink: 0;
         }
         .rep-option:hover {
             border-color: #1e3a5f;
-            background: #f8fafc;
+            background: #f0f9ff;
+            transform: translateX(2px);
         }
         .rep-option .rep-name {
             font-weight: 600;
@@ -325,7 +360,7 @@
             font-size: 16px;
         }
         .rep-option .rep-email {
-            font-size: 13px;
+            font-size: 12px;
             color: #64748b;
             margin-top: 2px;
         }
@@ -333,6 +368,21 @@
             text-align: center;
             padding: 40px;
             color: #64748b;
+        }
+        .no-results {
+            text-align: center;
+            padding: 24px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        .persistence-note {
+            margin-top: 16px;
+            padding: 10px;
+            background: #f0fdf4;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #166534;
+            text-align: center;
         }
 
         /* Transcription editing */
@@ -375,9 +425,11 @@
         <div class="overlay-content">
             <h2>Select Your Name</h2>
             <p>Choose your profile to get started</p>
+            <input type="text" class="search-input" id="repSearchInput" placeholder="Search by name..." oninput="filterSalesReps()">
             <div class="rep-list" id="repList">
                 <div class="loading-reps">Loading...</div>
             </div>
+            <div class="persistence-note">Your selection will be saved on this device</div>
         </div>
     </div>
 
@@ -521,8 +573,12 @@
         const tips = document.getElementById('tips');
         const repSelectionOverlay = document.getElementById('repSelectionOverlay');
         const repList = document.getElementById('repList');
+        const repSearchInput = document.getElementById('repSearchInput');
         const userHeader = document.getElementById('userHeader');
         const currentUserName = document.getElementById('currentUserName');
+
+        // Store all sales reps for filtering
+        let allSalesReps = [];
 
         // Intent display configuration
         const intentConfig = {
@@ -542,17 +598,8 @@
                 const data = await response.json();
 
                 if (data.success && data.sales_reps.length > 0) {
-                    repList.innerHTML = '';
-                    data.sales_reps.forEach(rep => {
-                        const option = document.createElement('div');
-                        option.className = 'rep-option';
-                        option.onclick = () => selectSalesRep(rep);
-                        option.innerHTML = `
-                            <div class="rep-name">${rep.name}</div>
-                            ${rep.email ? `<div class="rep-email">${rep.email}</div>` : ''}
-                        `;
-                        repList.appendChild(option);
-                    });
+                    allSalesReps = data.sales_reps;  // Store for filtering
+                    renderSalesReps(allSalesReps);
                 } else {
                     repList.innerHTML = '<div class="loading-reps">No sales reps found. Please check Airtable configuration.</div>';
                 }
@@ -560,6 +607,37 @@
                 console.error('Failed to load sales reps:', err);
                 repList.innerHTML = '<div class="loading-reps">Failed to load sales reps. Please refresh.</div>';
             }
+        }
+
+        function renderSalesReps(reps) {
+            repList.innerHTML = '';
+            if (reps.length === 0) {
+                repList.innerHTML = '<div class="no-results">No matching sales reps</div>';
+                return;
+            }
+            reps.forEach(rep => {
+                const option = document.createElement('div');
+                option.className = 'rep-option';
+                option.onclick = () => selectSalesRep(rep);
+                option.innerHTML = `
+                    <div class="rep-name">${rep.name}</div>
+                    ${rep.email ? `<div class="rep-email">${rep.email}</div>` : ''}
+                `;
+                repList.appendChild(option);
+            });
+        }
+
+        function filterSalesReps() {
+            const query = repSearchInput.value.toLowerCase().trim();
+            if (!query) {
+                renderSalesReps(allSalesReps);
+                return;
+            }
+            const filtered = allSalesReps.filter(rep =>
+                rep.name.toLowerCase().includes(query) ||
+                (rep.email && rep.email.toLowerCase().includes(query))
+            );
+            renderSalesReps(filtered);
         }
 
         function selectSalesRep(rep) {
@@ -575,6 +653,7 @@
         }
 
         function showRepSelection() {
+            repSearchInput.value = '';  // Clear search
             loadSalesReps();
             repSelectionOverlay.classList.remove('hidden');
         }
